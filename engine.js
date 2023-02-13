@@ -4,6 +4,7 @@ var wrap = require('word-wrap');
 var map = require('lodash.map');
 var longest = require('longest');
 var chalk = require('chalk');
+global.rootDir = __dirname
 
 var filter = function(array) {
   return array.filter(function(x) {
@@ -186,8 +187,33 @@ module.exports = function(options) {
             return answers.isIssueAffected;
           },
           default: options.defaultIssues ? options.defaultIssues : undefined
-        }
+        },
+
+        {
+          type: 'confirm',
+          name: 'isMergeRequest',
+          message: 'Do you want to create a merge request?',
+          default: true
+        },
+        {
+          type: 'input',
+          name: 'mergeRequestBody',
+          default: undefined,
+          message:'Enter desired target branch:\n',
+          when: function(answers) {
+            console.log('answers =====> ', answers)
+            // return answers.isMergeBranch && !answers.body;
+            return answers.isMergeRequest; 
+          },
+          validate: function(mergeRequestBody, answers) {
+            return (
+              mergeRequestBody.trim().length > 0 ||
+              'Target branch is required'
+            );
+          }
+        },
       ]).then(function(answers) {
+    
         var wrapOptions = {
           trim: true,
           cut: false,
@@ -213,8 +239,29 @@ module.exports = function(options) {
         breaking = breaking ? wrap(breaking, wrapOptions) : false;
 
         var issues = answers.issues ? wrap(answers.issues, wrapOptions) : false;
-
         commit(filter([head, body, breaking, issues]).join('\n\n'));
+
+
+        if(answers.mergeRequestBody) {
+      
+          const { spawn } = require('child_process');
+
+          const child = spawn('glab', ['mr','create','-b',`${answers.mergeRequestBody}`,'-f','--fill-commit-body','--yes']);
+          
+          child.stdout.on('data', (data) => {
+            console.log(`stdout: ${data}`);
+          });
+          
+          child.stderr.on('data', (data) => {
+            console.error(`stderr: ${data}`);
+          });
+
+          
+          child.on('close', (code) => {
+            console.log(`child process exited with code ${code}`);
+          });
+
+        } 
       });
     }
   };
